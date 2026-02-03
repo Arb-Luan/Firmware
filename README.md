@@ -65,7 +65,7 @@ Programação em Arduino C/C++
 
 ⚠️ Observação: algumas adaptações foram feitas para compatibilidade com o simulador. Em uma implementação real, recomenda-se o uso de fonte externa para o motor e diodo de flyback.
 
-🎯 Objetivo Educacional
+<h3 align="center">🎯 Objetivo Educacional</h3>
 
 Este projeto tem como objetivo consolidar conceitos de:
 
