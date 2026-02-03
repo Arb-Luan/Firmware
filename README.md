@@ -2,7 +2,7 @@
 
 <h3 align="center">📌 Descrição</h3>
 
-Este diretório reúne meus projetos de programação em Firmware e Internet das Coisas (IoT), com foco em sistemas embarcados, automação e integração entre hardware e software.
+Este repositório reúne meus projetos de programação em Firmware e Internet das Coisas (IoT), com foco em sistemas embarcados, automação e integração entre hardware e software.
 
 Os projetos aqui presentes envolvem, principalmente:
 
