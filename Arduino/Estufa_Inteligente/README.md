@@ -1,4 +1,8 @@
 <h1 align="center">🌱 Estufa Inteligente com Arduino (Simulação no Tinkercad)</h1>
+
+<img width="757" height="500" alt="image" src="https://github.com/user-attachments/assets/c5fe758e-dbbc-45fa-aaa5-e9305c27df5f" />
+
+
 📌 Descrição do Projeto
 
 Este projeto simula o controle de uma estufa de hortaliças, utilizando um Arduino Uno no simulador Tinkercad.
