@@ -22,7 +22,7 @@ Transistor NPN (acionamento do motor)
 
 LED vermelho + resistor
 
-Buzzer
+Buzzer ativo/ Piezo
 
 Capacitor de desacoplamento (100 nF)
 
