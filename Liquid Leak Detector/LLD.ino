@@ -1,58 +1,59 @@
+// =====================
+// Monitor de Concentração de Hidrocarboneto
+// =====================
 
+// ---- Configuração de Hardware ----
+const int ledAlert[] = {2, 3, 4};
+const int cPetroleo = A0;
 
-//TODO:Conectar servo Motor 
-//2 LED e 3 botão
-int ledAlert[]={2,3,4};
-int cPetroleo=A0;
+// ---- Limites ----
+const int LIMITE_SEGURO  = 400;
+const int LIMITE_CRITICO = 800;
+
+// ---- Controle de Tempo ----
+const unsigned long INTERVALO_LEITURA = 2000;
+unsigned long tempoAnterior = 0;
+
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(9600);
-  for(int i=0;i<=2;i++)
-    pinMode(ledAlert[i],OUTPUT);
+
+  for (int i = 0; i < sizeof(ledAlert)/sizeof(ledAlert[0]); i++) {
+    pinMode(ledAlert[i], OUTPUT);
+  }
 }
 
 void loop() {
-  for(int i=0;i<=2;i++)
-    digitalWrite(ledAlert[i],LOW);  // put your main code here, to run repeatedly:
-  int reading = analogRead(cPetroleo);
-  concentracPetroleo(reading);
-  delay(2000);
+
+  unsigned long tempoAtual = millis();
+
+  if (tempoAtual - tempoAnterior >= INTERVALO_LEITURA) {
+    tempoAnterior = tempoAtual;
+
+    int leitura = analogRead(cPetroleo);
+    processarConcentracao(leitura);
+  }
 }
 
-void concentracPetroleo(int leitura)
-{
-  Serial.println("\nConcentracao de petroleo:\n");
+void processarConcentracao(int leitura) {
+  Serial.println("\nConcentracao de petroleo:");
   Serial.println(leitura);
-  rSinalLED(leitura);
-} 
-void rSinalLED(int level)
-{
-  for(int i=0;i<=2;i++)
-    digitalWrite(ledAlert[i],HIGH);
-  compareLevel(level);
-}
-void compareLevel(int level)
-{
-  if(level<400)
-  {
-   //Nível Seguro
-    digitalWrite(ledAlert[0],HIGH);
-    for(int i =1 ; i<=2;i++)
-      digitalWrite(ledAlert[i],LOW);
-  }
-  else if(level>=400 && level<800)
-  {
-    //Nível Médio
-    digitalWrite(ledAlert[1],HIGH);
-    digitalWrite(ledAlert[0],LOW);
-    digitalWrite(ledAlert[2],LOW);
-  }
-  else
-  {
-    //Nível Crítico
-    digitalWrite(ledAlert[2],HIGH);
-    digitalWrite(ledAlert[0],LOW);
-    digitalWrite(ledAlert[1],LOW);
-  }
+  atualizarSinalizacao(leitura);
 }
 
+void atualizarSinalizacao(int nivel) {
+
+  // Desliga todos
+  for (int i = 0; i < sizeof(ledAlert)/sizeof(ledAlert[0]); i++) {
+    digitalWrite(ledAlert[i], LOW);
+  }
+
+  if (nivel < LIMITE_SEGURO) {
+    digitalWrite(ledAlert[0], HIGH);
+
+  } else if (nivel < LIMITE_CRITICO) {
+    digitalWrite(ledAlert[1], HIGH);
+
+  } else {
+    digitalWrite(ledAlert[2], HIGH);
+  }
+}
