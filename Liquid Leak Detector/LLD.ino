@@ -1,31 +1,50 @@
 #include <Servo.h>
 
 // =====================
-// Monitor de Concentração de Hidrocarboneto
+// Hardware
 // =====================
 
-// ---- Hardware ----
 const int ledAlert[] = {2,3,4};
 const int sensorPetroleo = A0;
 const int servoPin = 5;
+const int buzzer = 6;
 
-// ---- Servo ----
+// =====================
+// Servo
+// =====================
+
 Servo valvula;
 
-// posições mecânicas seguras
 const int VALVULA_ABERTA = 160;
 const int VALVULA_MEIA = 45;
 const int VALVULA_FECHADA = 90;
 
-// ---- Limites do sensor ----
+// =====================
+// Limites
+// =====================
+
 const int LIMITE_SEGURO = 400;
 const int LIMITE_CRITICO = 800;
 
-// ---- Controle de tempo ----
+// =====================
+// Controle de tempo
+// =====================
+
 const unsigned long INTERVALO_LEITURA = 2000;
 unsigned long tempoAnterior = 0;
 
-// ---- Estados ----
+// =====================
+// Buffer de leituras
+// =====================
+
+const int TAM_BUFFER = 5;
+int buffer[TAM_BUFFER];
+int indice = 0;
+
+// =====================
+// Estados
+// =====================
+
 enum Nivel
 {
   SEGURO,
@@ -44,22 +63,22 @@ void setup()
 {
   Serial.begin(9600);
 
-  for(int i=0;i<sizeof(ledAlert)/sizeof(ledAlert[0]);i++)
-  {
-    pinMode(ledAlert[i],OUTPUT);
-  }
+  for(int i=0;i<3;i++)
+  pinMode(ledAlert[i],OUTPUT);
+
+  pinMode(buzzer,OUTPUT);
 
   valvula.attach(servoPin);
 
-  delay(500); // estabiliza servo
+  delay(500);
 
   valvula.write(VALVULA_ABERTA);
 
-  Serial.println("Sistema iniciado");
+  Serial.println("Sistema inteligente iniciado");
 }
 
 // =====================
-// Loop principal
+// Loop
 // =====================
 
 void loop()
@@ -72,10 +91,26 @@ void loop()
 
     int leitura = analogRead(sensorPetroleo);
 
-    Serial.print("Leitura sensor: ");
-    Serial.println(leitura);
+    atualizarBuffer(leitura);
 
-    estadoAtual = classificarNivel(leitura);
+    int leituraFiltrada = mediaMovel();
+
+    int tendencia = calcularTendencia();
+
+    Serial.print("Leitura filtrada: ");
+    Serial.println(leituraFiltrada);
+
+    Serial.print("Tendencia: ");
+    Serial.println(tendencia);
+
+    estadoAtual = classificarNivel(leituraFiltrada);
+
+    // IA simples: se tendencia subir rápido → alerta preventivo
+    if(tendencia > 40 && estadoAtual == SEGURO)
+    {
+      Serial.println("Possivel vazamento detectado (previsao)");
+      estadoAtual = MEDIO;
+    }
 
     atualizarLEDs(estadoAtual);
 
@@ -84,7 +119,44 @@ void loop()
       controlarValvula(estadoAtual);
       estadoAnterior = estadoAtual;
     }
+
+    controlarBuzzer(estadoAtual);
   }
+}
+
+// =====================
+// Buffer
+// =====================
+
+void atualizarBuffer(int leitura)
+{
+  buffer[indice] = leitura;
+  indice++;
+
+  if(indice >= TAM_BUFFER)
+  indice = 0;
+}
+
+int mediaMovel()
+{
+  long soma = 0;
+
+  for(int i=0;i<TAM_BUFFER;i++)
+  soma += buffer[i];
+
+  return soma / TAM_BUFFER;
+}
+
+// =====================
+// Tendência (IA simples)
+// =====================
+
+int calcularTendencia()
+{
+  int diferenca = buffer[(indice+TAM_BUFFER-1)%TAM_BUFFER] -
+                  buffer[(indice+TAM_BUFFER-2)%TAM_BUFFER];
+
+  return diferenca;
 }
 
 // =====================
@@ -108,7 +180,7 @@ Nivel classificarNivel(int leitura)
 
 void atualizarLEDs(Nivel nivel)
 {
-  for(int i=0;i<sizeof(ledAlert)/sizeof(ledAlert[0]);i++)
+  for(int i=0;i<3;i++)
   digitalWrite(ledAlert[i],LOW);
 
   switch(nivel)
@@ -128,7 +200,23 @@ void atualizarLEDs(Nivel nivel)
 }
 
 // =====================
-// Controle da válvula
+// Buzzer
+// =====================
+
+void controlarBuzzer(Nivel nivel)
+{
+  if(nivel == CRITICO)
+  {
+    tone(buzzer,1000);
+  }
+  else
+  {
+    noTone(buzzer);
+  }
+}
+
+// =====================
+// Válvula
 // =====================
 
 void controlarValvula(Nivel nivel)
