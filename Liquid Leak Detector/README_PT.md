@@ -15,7 +15,7 @@ Sistema Inteligente de Monitoramento de Hidrocarbonetos para Segurança Industri
 </p>
 
 <p align="center">
-🇧🇷 Português | 🇺🇸 <a href="README_EN.md">English Version</a>
+🇧🇷 Português | 🇺🇸 <a href="README.md">English Version</a>
 </p>
 
 <hr>
