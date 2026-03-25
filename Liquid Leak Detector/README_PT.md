@@ -53,7 +53,7 @@ Desenvolvido como projeto prático durante um programa de formação técnica, o
 <h2>🧠 Inteligência Embarcada</h2>
 
 <p>
-O sistema implementa um mecanismo simples de detecção preditiva para identificar possíveis vazamentos antes que os níveis se tornem críticos.
+O sistema implementa um mecanismo simples de detecção preditiva para identificar possíveis vazamentos antes que os níveis se tornem críticos, pronpondo assim evitar acidentes.
 </p>
 
 <p><strong>Técnicas utilizadas:</strong></p>
