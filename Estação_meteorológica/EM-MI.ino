@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <DHT.h>
+#include <ESP32Servo.h>
 
 // =====================================================
 // CONFIGURAÇÕES WI-FI E MQTT
@@ -12,7 +13,7 @@ const char* password = "capivara013";
 const char* mqtt_server = "test.mosquitto.org";
 const int mqtt_port = 1883;
 
-const char* topic_publish = "ColMi/publisher";
+// Tópico para receber comandos (Inscrição)
 const char* topic_subscribe = "ColMi/subscribe";
 
 // =====================================================
@@ -25,14 +26,23 @@ PubSubClient client(espClient);
 const uint8_t LEDS[] = {4, 18, 19};
 const uint8_t NUM_LEDS = sizeof(LEDS) / sizeof(LEDS[0]);
 
-// Configurado conforme o seu segundo código: GPIO 2 e DHT11
-#define DHT_PIN 2
+#ifndef LED_BUILTIN
+  #define LED_BUILTIN 2
+#endif
+
+// DHT movido para o pino 14 para liberar o GPIO 2 (LED Built-in)
+#define DHT_PIN 14
 #define DHT_TYPE DHT11
 
 const uint8_t SENSOR_CHUVA = 26;
 const uint8_t SENSOR_MICROFONE = 27;
 
+#define SERVO1_PIN 12
+#define SERVO2_PIN 13
+
 DHT dht(DHT_PIN, DHT_TYPE);
+Servo servo1;
+Servo servo2;
 
 // =====================================================
 // VARIÁVEIS DE CONTROLE
@@ -42,45 +52,87 @@ unsigned long ultimoEnvio = 0;
 unsigned long ultimaTentativaMQTT = 0;
 unsigned long contador = 0;
 
-// O DHT11 precisa de pelo menos 2 segundos entre leituras. 5 segundos é ideal.
 const unsigned long INTERVALO_SENSORES = 5000; 
 const unsigned long INTERVALO_RECONEXAO_MQTT = 5000;
 
-// Aumentado o buffer para suportar a string JSON maior com Fahrenheit e Heat Index
-#define MSG_BUFFER_SIZE 350
+#define MSG_BUFFER_SIZE 50
 char msg[MSG_BUFFER_SIZE];
 
 // =====================================================
-// FUNÇÕES AUXILIARES - Mudar o código do Payload
+// FUNÇÕES AUXILIARES - CONTROLE DE DISPOSITIVOS
 // =====================================================
 
 void apagarLeds() {
   for (uint8_t i = 0; i < NUM_LEDS; i++) {
     digitalWrite(LEDS[i], LOW);
   }
+  digitalWrite(LED_BUILTIN, LOW);
 }
 
-void controlarLed(char comando) {
-  apagarLeds();
+void processarPayload(String payloadStr) {
+  payloadStr.trim(); 
+  
+  if (payloadStr.length() == 0) return;
+
+  Serial.print("Comando processado: [");
+  Serial.print(payloadStr);
+  Serial.println("]");
+
+  if (payloadStr.indexOf(':') != -1) {
+    int separador = payloadStr.indexOf(':');
+    int payloadId = payloadStr.substring(0, separador).toInt();
+    int valor = payloadStr.substring(separador + 1).toInt();
+
+    switch (payloadId) {
+      case 2: // Servo 1
+        valor = constrain(valor, 0, 180);
+        servo1.write(valor);
+        Serial.print("-> Servo 1 movido para: ");
+        Serial.println(valor);
+        break;
+      case 3: // Servo 2
+        valor = constrain(valor, 0, 180);
+        servo2.write(valor);
+        Serial.print("-> Servo 2 movido para: ");
+        Serial.println(valor);
+        break;
+      default:
+        Serial.println("-> Payload ID de dois pontos desconhecido.");
+        break;
+    }
+    return;
+  }
+
+  char comando = payloadStr.charAt(0);
 
   switch (comando) {
     case '1':
-      digitalWrite(4, HIGH);
-      Serial.println("LED 1 -> GPIO 4 LIGADO");
+      digitalWrite(LEDS[0], HIGH);
+      Serial.println("-> LED 1 (GPIO 4) LIGADO");
       break;
     case '2':
-      digitalWrite(18, HIGH);
-      Serial.println("LED 2 -> GPIO 18 LIGADO");
+      digitalWrite(LEDS[1], HIGH);
+      Serial.println("-> LED 2 (GPIO 18) LIGADO");
       break;
     case '3':
-      digitalWrite(19, HIGH);
-      Serial.println("LED 3 -> GPIO 19 LIGADO");
+      digitalWrite(LEDS[2], HIGH);
+      Serial.println("-> LED 3 (GPIO 19) LIGADO");
+      break;
+    case '4':
+      digitalWrite(LED_BUILTIN, HIGH);
+      Serial.println("-> LED Built-in LIGADO");
+      break;
+    case '5':
+      digitalWrite(LED_BUILTIN, LOW);
+      Serial.println("-> LED Built-in DESLIGADO");
       break;
     case '0':
-      Serial.println("Todos os LEDs DESLIGADOS");
+      apagarLeds();
+      Serial.println("-> Todos os LEDs e Built-in desligados.");
       break;
     default:
-      Serial.println("Comando inválido. Use 0, 1, 2 ou 3.");
+      Serial.print("-> Comando inválido recebido: ");
+      Serial.println(comando);
       break;
   }
 }
@@ -113,13 +165,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print(topic);
   Serial.print("]: ");
   
-  if (length > 0) {
-    char comando = (char)payload[0];
-    Serial.println(comando);
-    controlarLed(comando);
-  } else {
-    Serial.println("Payload vazio.");
+  String mensagemRecebida = "";
+  for (unsigned int i = 0; i < length; i++) {
+    mensagemRecebida += (char)payload[i];
   }
+  
+  Serial.println(mensagemRecebida);
+  processarPayload(mensagemRecebida);
 }
 
 void reconnect() {
@@ -129,8 +181,8 @@ void reconnect() {
       ultimaTentativaMQTT = agora;
       Serial.print("Tentando conexão MQTT...");
       
-      String clientId = "ESP32Client-";
-      clientId += String(random(0xffff), HEX);
+      String clientId = "ESP32-Client-";
+      clientId += String(ESP.getEfuseMac(), HEX);
       
       if (client.connect(clientId.c_str())) {
         Serial.println("conectado!");
@@ -152,95 +204,84 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   
-  // Configuração dos Pinos dos LEDs
   for (uint8_t i = 0; i < NUM_LEDS; i++) {
     pinMode(LEDS[i], OUTPUT);
   }
+  pinMode(LED_BUILTIN, OUTPUT);
   apagarLeds();
 
-  // Configuração dos Pinos dos Sensores extras
+  servo1.setPeriodHertz(50);
+  servo1.attach(SERVO1_PIN, 500, 2400);
+  
+  servo2.setPeriodHertz(50);
+  servo2.attach(SERVO2_PIN, 500, 2400);
+
   pinMode(SENSOR_CHUVA, INPUT);
   pinMode(SENSOR_MICROFONE, INPUT);
 
-  // Inicializa o sensor DHT
   dht.begin();
   Serial.println("DHT Sensor Inicializado com Sucesso.");
 
-  // Inicializa Wi-Fi e MQTT
   setup_wifi();
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
 }
 
 void loop() {
-  // Mantém a conexão com o Broker ativa de forma não-bloqueante
   if (!client.connected()) {
     reconnect();
   } else {
     client.loop();
   }
 
-  // Rotina periódica de leitura e envio (substitui o delay(2000) do loop original)
   unsigned long agora = millis();
   if (agora - ultimoEnvio >= INTERVALO_SENSORES) {
     ultimoEnvio = agora;
     contador++;
 
-    // Leitura do sensor DHT
     float humidity = dht.readHumidity();
     float tempC = dht.readTemperature();
     float tempF = dht.readTemperature(true);
 
-    // Leitura dos demais sensores do circuito
     int chuva = digitalRead(SENSOR_CHUVA);
     int som = digitalRead(SENSOR_MICROFONE);
 
-    // Validação de dados do DHT
     if (isnan(humidity) || isnan(tempC) || isnan(tempF)) {
       Serial.println("Warning: Failed to read from DHT sensor! Check your wiring.");
-      return; // Sai mais cedo se a leitura falhar para não enviar lixo
+      return; 
     }
 
-    // Cálculo do Índice de Calor
     float heatIndexC = dht.computeHeatIndex(tempC, humidity, false);
     float heatIndexF = dht.computeHeatIndex(tempF, humidity);
 
-    // Exibição local no Monitor Serial (Mantendo o padrão limpo do seu código)
-    Serial.print("Contador: ");
-    Serial.print(contador);
-    Serial.print(" | Humidity: ");
-    Serial.print(humidity, 1);
-    Serial.print("% | Temp: ");
-    Serial.print(tempC, 1);
-    Serial.print("°C / ");
-    Serial.print(tempF, 1);
-    Serial.print("°F | Heat Index: ");
-    Serial.print(heatIndexC, 1);
-    Serial.print("°C / ");
-    Serial.print(heatIndexF, 1);
-    Serial.println("°F");
-
-    // Formatação de string JSON completa para envio via MQTT
-   snprintf(msg, MSG_BUFFER_SIZE, 
-  "{\n"
-  "  \"id\": %lu,\n"
-  "  \"tempC\": %.1f,\n"
-  "  \"tempF\": %.1f,\n"
-  "  \"umid\": %.1f,\n"
-  "  \"hiC\": %.1f,\n"
-  "  \"hiF\": %.1f,\n"
-  "  \"chuva\": %d,\n"
-  "  \"som\": %d\n"
-  "}", 
-  contador, tempC, tempF, humidity, heatIndexC, heatIndexF, chuva, som
-);
-
-
-    // Envio dos dados estruturados para o Broker
+    // =====================================================
+    // PUBLICAÇÃO EM TÓPICOS SEPARADOS
+    // =====================================================
     if (client.connected()) {
-      Serial.print("Publicando no MQTT: ");
-      Serial.println(msg);
-      client.publish(topic_publish, msg);
+      Serial.println("--- Publicando dados em tópicos separados ---");
+
+      snprintf(msg, MSG_BUFFER_SIZE, "%.1f", tempC);
+      client.publish("ColMi/tempC", msg);
+
+      snprintf(msg, MSG_BUFFER_SIZE, "%.1f", tempF);
+      client.publish("ColMi/tempF", msg);
+
+      snprintf(msg, MSG_BUFFER_SIZE, "%.1f", humidity);
+      client.publish("ColMi/umid", msg);
+
+      snprintf(msg, MSG_BUFFER_SIZE, "%.1f", heatIndexC);
+      client.publish("ColMi/hiC", msg);
+
+      snprintf(msg, MSG_BUFFER_SIZE, "%.1f", heatIndexF);
+      client.publish("ColMi/hiF", msg);
+
+      snprintf(msg, MSG_BUFFER_SIZE, "%d", chuva);
+      client.publish("ColMi/chuva", msg);
+
+      snprintf(msg, MSG_BUFFER_SIZE, "%d", som);
+      client.publish("ColMi/som", msg);
+      
+      Serial.println("Dados publicados com sucesso!");
     }
   }
 }
