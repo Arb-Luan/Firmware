@@ -16,6 +16,10 @@ const int mqtt_port = 1883;
 // Tópico para receber comandos (Inscrição)
 const char* topic_subscribe = "ColMi/subscribe";
 
+// Tópico para passar dados
+const char* topic_publisher_temp = "ColMi/temperatura";
+const char* topic_publisher_umid = "ColMi/umidade";
+
 // =====================================================
 // OBJETOS E PINOS
 // =====================================================
